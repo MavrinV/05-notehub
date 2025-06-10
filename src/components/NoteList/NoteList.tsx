@@ -1,5 +1,5 @@
 import css from "./NoteList.module.css";
-import { useDeleteNote } from "../CreateNote/HookMutation";
+import { useDeleteNote } from "../../hooks/NoteCreateHook/HookMutation";
 import type { NoteProps } from "../../types/note";
 
 export default function NoteList({ notes }: NoteProps) {

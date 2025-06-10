@@ -1,6 +1,6 @@
 import css from "./NoteForm.module.css";
 import type { NoteFormProps, NoteFormValues } from "../../types/note";
-import { useCreateNote } from "../CreateNote/HookMutation";
+import { useCreateNote } from "../../hooks/NoteCreateHook/HookMutation";
 import { Formik, Form, Field, ErrorMessage, type FormikHelpers } from "formik";
 import * as Yup from "yup";
 import toast from "react-hot-toast";
