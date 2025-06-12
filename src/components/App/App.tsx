@@ -1,60 +1,73 @@
+import { fetchNotes } from "../../services/noteService";
+import NoteList from "../NoteList/NoteList";
+import NoteModal from "../NoteModal/NoteModal";
+import Pagination from "../Pagination/Pagination";
+import SearchBox from "../SearchBox/SearchBox";
 import css from "./App.module.css";
-import NoteList from "../NoteList/NoteList.tsx";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useState } from "react";
-import { fetchNotes } from "../../services/noteService.ts";
-import Pagination from "../Pagination/Pagination.tsx";
-import NoteModal from "../NoteModal/NoteModal.tsx";
-import NoteForm from "../NoteForm/NoteForm.tsx";
-import SearchBox from "../SearchBox/SearchBox.tsx";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
-import { Toaster } from "react-hot-toast";
-import type { Note } from "../../types/note.ts";
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearchQuery] = useDebounce(searchQuery, 300);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [query, setQuery] = useState<string>("");
+  const [debouncedQuery] = useDebounce<string>(query, 1000);
+  const [modalOpen, setModalOpen] = useState<boolean>(false);
 
-  const openModal = () => setIsModalOpen(true);
-  const closeModal = () => setIsModalOpen(false);
-
-  const { data } = useQuery<{ notes: Note[]; totalPages: number }, Error>({
-    queryKey: ["notes", currentPage, debouncedSearchQuery],
-    queryFn: () =>
-      fetchNotes({
-        page: currentPage,
-        searchQuery: debouncedSearchQuery || undefined,
-      }),
+  const loadNotes = useQuery({
+    queryKey: ["Notes", debouncedQuery, currentPage],
+    queryFn: () => fetchNotes(debouncedQuery, currentPage),
     placeholderData: keepPreviousData,
   });
 
-  const totalPages = data?.totalPages || 1;
+  const handleModalOpen = (): void => {
+    setModalOpen(true);
+  };
+
+  const handleModalClose = (): void => {
+    setModalOpen(false);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleQueryChange = (value: string): void => {
+    setQuery(value);
+    setCurrentPage(1);
+  };
+
   return (
     <div className={css.app}>
       <header className={css.toolbar}>
-        <SearchBox value={searchQuery} onSearch={setSearchQuery} />
-        {totalPages > 1 && (
+        <SearchBox onChange={handleQueryChange} value={query} />
+
+        {loadNotes.isSuccess && loadNotes.data.totalPages > 1 && (
           <Pagination
-            totalPages={totalPages}
+            pageCount={loadNotes.data.totalPages}
+            onPageChange={handlePageChange}
             currentPage={currentPage}
-            onPageChange={setCurrentPage}
           />
         )}
-        <button className={css.button} onClick={openModal}>
+
+        <button className={css.button} onClick={handleModalOpen}>
           Create note +
         </button>
       </header>
-      <div>
-        <Toaster position="top-center" reverseOrder={true} />
-      </div>
-      <NoteList notes={data?.notes || []} />
-      {isModalOpen && (
-        <NoteModal onClose={closeModal}>
-          <NoteForm onClose={closeModal} />
-        </NoteModal>
+
+      {loadNotes.isPending && !loadNotes.isSuccess && (
+        <p className={css.loading}>Loading your notes...</p>
       )}
+
+      {loadNotes.isError && (
+        <p className={css.loaderror}>
+          An error occurred: {JSON.stringify(loadNotes.error)}, please reload the page!
+        </p>
+      )}
+
+      {loadNotes.isSuccess && <NoteList notes={loadNotes.data.notes} />}
+
+      {modalOpen && <NoteModal onClose={handleModalClose} />}
     </div>
   );
 }
