@@ -1,67 +1,71 @@
-import css from "./NoteForm.module.css";
-import type { NoteFormProps, NoteFormValues } from "../../types/note";
-import { useCreateNote } from "../../hooks/NoteCreateHook/HookMutation";
 import { Formik, Form, Field, ErrorMessage, type FormikHelpers } from "formik";
+import css from "./NoteForm.module.css";
 import * as Yup from "yup";
-import toast from "react-hot-toast";
+import { type NoteFormData } from "../../types/note";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { createNote } from "../../services/noteService";
+import iziToast from "izitoast";
+
+interface NoteFormProps {
+  onClose: () => void;
+}
+
+
+const NoteFormSchema = Yup.object().shape({
+  title: Yup.string()
+    .min(3, "Too short title, min 3 symbols")
+    .max(50, "Too long title, max 50 symbols")
+    .required("Title is required"),
+  content: Yup.string().max(500, "Too long content, max 500 symbols"),
+  tag: Yup.string().oneOf(["Todo", "Work", "Personal", "Meeting", "Shopping"]),
+});
 
 export default function NoteForm({ onClose }: NoteFormProps) {
-  const initialValues: NoteFormValues = {
-    title: "",
-    content: "",
-    tag: "Todo",
-  };
-
-  const mutation = useCreateNote();
-
-  const noteFormSchema = Yup.object().shape({
-    title: Yup.string()
-      .min(3, "Name must be at least 3 characters")
-      .max(50, "Name is too long")
-      .required("Title is required"),
-    content: Yup.string()
-      .max(500, "Content is too long")
-      .required("Content is required"),
-    tag: Yup.string().required("Tag is required"),
+  const queryClient = useQueryClient();
+  const addNewNote = useMutation({
+    mutationFn: (newNoteData: NoteFormData) => createNote(newNoteData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["Notes"] });
+      onClose();
+    },
+    onError: () => {
+      iziToast.error({
+        message: "Error adding note, please try again",
+        position: "topCenter",
+      });
+    },
   });
-
-  const handleSubmit = (
-    values: NoteFormValues,
-    actions: FormikHelpers<NoteFormValues>
-  ) => {
-    mutation.mutate(values, {
-      onSuccess: () => {
-        toast.success("New note created successfully");
-        actions.resetForm();
-        onClose();
-      },
-    });
-    console.log("Note data:", values);
+  const handleSubmit = (values: NoteFormData, actions: FormikHelpers<NoteFormData>) => {
+    addNewNote.mutate(values);
+    actions.resetForm();
   };
-
   return (
     <Formik
-      initialValues={initialValues}
-      validationSchema={noteFormSchema}
+      initialValues={{
+        title: "",
+        content: "",
+        tag: "Todo",
+      }}
       onSubmit={handleSubmit}
+      validationSchema={NoteFormSchema}
     >
       <Form className={css.form}>
         <div className={css.formGroup}>
           <label htmlFor="title">Title</label>
           <Field id="title" type="text" name="title" className={css.input} />
-          <ErrorMessage name="title" component="span" className={css.error} />
+          <ErrorMessage component="div" name="title" className={css.error} />
         </div>
 
         <div className={css.formGroup}>
           <label htmlFor="content">Content</label>
           <Field
+            as="textarea"
             id="content"
             name="content"
             rows="8"
-            as="textarea"
             className={css.textarea}
           />
-          <ErrorMessage name="content" component="span" className={css.error} />
+          <ErrorMessage component="div" name="content" className={css.error} />
         </div>
 
         <div className={css.formGroup}>
@@ -73,15 +77,17 @@ export default function NoteForm({ onClose }: NoteFormProps) {
             <option value="Meeting">Meeting</option>
             <option value="Shopping">Shopping</option>
           </Field>
-          <ErrorMessage name="tag" component="span" className={css.error} />
+          <ErrorMessage component="div" name="tag" className={css.error} />
         </div>
 
         <div className={css.actions}>
-          <button type="button" className={css.cancelButton} onClick={onClose}>
+          <button type="button" onClick={onClose} className={css.cancelButton}>
             Cancel
           </button>
           <button type="submit" className={css.submitButton}>
-            Create note
+            {addNewNote.isPending && !addNewNote.isSuccess
+              ? `Creating note...`
+              : `Create note`}
           </button>
         </div>
       </Form>
